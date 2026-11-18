@@ -1,0 +1,35 @@
+# ガードレール④：「あり得ない挙動」のルール（Falco）。
+# 前提：デフォルトルールが読み込まれていること（macro open_read / outbound を使用）。
+# 検証済み（Falco 0.45.2）：k8s.ns.name と k8s.pod.label[app] は使える（ドット記法 k8s.pod.label.app は構文エラー）。
+- list: agent_allowed_dest_ips
+  items: ["10.96.0.10"]        # kube-dns（kind の既定）。環境に合わせて変更
+
+# 既定の macro outbound は RFC1918 宛を除外する（not fd.snet in (rfc_1918_addresses)）。
+# このデモの宛先（10.96.50.50）は私設アドレスなので、outbound では検知できない。専用の macro を使う。
+- macro: agent_outbound
+  condition: >
+    evt.type = connect and evt.dir = < and (fd.typechar = 4 or fd.typechar = 6)
+    and fd.ip != "0.0.0.0" and fd.net != "127.0.0.0/8"
+    and (evt.rawres >= 0 or evt.res = EINPROGRESS)
+
+- rule: Agent Reads Service Account Token
+  desc: コーディングエージェントの Pod が、ServiceAccount のトークンを読んだ
+  condition: >
+    open_read and container
+    and k8s.ns.name = "agents" and k8s.pod.label[app] = "coding-agent"
+    and fd.name startswith "/var/run/secrets/kubernetes.io/serviceaccount/"
+  output: >
+    Agent read SA token (pod=%k8s.pod.name ns=%k8s.ns.name proc=%proc.name cmd=%proc.cmdline file=%fd.name)
+  priority: CRITICAL
+  tags: [agent, owasp_asi02, owasp_asi03]
+
+- rule: Agent Unexpected Outbound
+  desc: コーディングエージェントの Pod が、許可していない宛先へ接続しようとした
+  condition: >
+    agent_outbound and container
+    and k8s.ns.name = "agents" and k8s.pod.label[app] = "coding-agent"
+    and not fd.sip in (agent_allowed_dest_ips)
+  output: >
+    Agent unexpected outbound (pod=%k8s.pod.name dest=%fd.sip:%fd.sport proc=%proc.name cmd=%proc.cmdline)
+  priority: CRITICAL
+  tags: [agent, owasp_asi01, owasp_asi02]

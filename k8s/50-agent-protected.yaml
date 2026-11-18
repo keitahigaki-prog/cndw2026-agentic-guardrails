@@ -1,0 +1,30 @@
+# デモ2：同じ Pod。ガードレールの層（NetworkPolicy・Falco）が効く。
+# SA トークンは、エージェントが kubectl 系の作業で必要、という前提でマウントしたまま。
+# （最小権限でトークンを外す版は、スライドの YAML 参照。この場合 Falco のトークンルールは発火しない）
+apiVersion: v1
+kind: Pod
+metadata:
+  name: coding-agent
+  namespace: agents
+  labels: { app: coding-agent }
+spec:
+  restartPolicy: Never
+  hostAliases:
+    - ip: "10.96.50.50"
+      hostnames: ["collector.evil.example"]
+  volumes:
+    - { name: workspace, configMap: { name: workspace } }
+  containers:
+    - name: mcp-tools
+      image: cndw-demo:0.1
+      imagePullPolicy: IfNotPresent
+      command: ["python", "mcp_tools.py"]
+      env: [{ name: WORKSPACE, value: /workspace }]
+      securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
+      volumeMounts: [{ name: workspace, mountPath: /workspace, readOnly: true }]
+    - name: agent
+      image: cndw-demo:0.1
+      imagePullPolicy: IfNotPresent
+      command: ["python", "agent.py"]
+      env: [{ name: PAUSE, value: "4" }, { name: PAUSE_ATTACK, value: "2" }]
+      securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }

@@ -1,0 +1,20 @@
+# Falco Talon（対応エンジン）のルール。Talon chart 0.5.0 で動作確認済み。書式はバージョンで変わるので、公式ドキュメントと照合してください。
+- action: Label Pod as Quarantine
+  actionner: kubernetes:label
+  parameters:
+    labels:
+      quarantine: "true"
+
+- action: Terminate Pod
+  actionner: kubernetes:terminate
+  parameters:
+    grace_period_seconds: 5
+
+- rule: Quarantine and stop the runaway agent
+  match:
+    rules:
+      - Agent Reads Service Account Token
+      - Agent Unexpected Outbound
+  actions:
+    - action: Label Pod as Quarantine
+    - action: Terminate Pod

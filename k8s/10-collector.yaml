@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: collector, namespace: attacker-sim }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: collector } }
+  template:
+    metadata: { labels: { app: collector } }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: collector
+          image: cndw-demo:0.1
+          imagePullPolicy: IfNotPresent
+          command: ["python", "collector.py"]
+          env: [{ name: PORT, value: "9000" }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: collector, namespace: attacker-sim }
+spec:
+  clusterIP: 10.96.50.50     # kind の既定 Service CIDR(10.96.0.0/16)内。agent の hostAliases で collector.evil.example に対応づける
+  selector: { app: collector }
+  ports: [{ port: 80, targetPort: 9000 }]

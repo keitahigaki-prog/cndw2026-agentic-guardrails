@@ -1,0 +1,27 @@
+# ガードレール③：危ない Pod を作らせない（Kubernetes 1.30+ の ValidatingAdmissionPolicy）。
+# デモでは Warn にして、違反を見せる（Deny にすると、デモ2 の Pod が作れなくなる）。
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata: { name: agent-pod-hardening }
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+  validations:
+    - expression: "has(object.spec.automountServiceAccountToken) && object.spec.automountServiceAccountToken == false"
+      message: "エージェント Pod は SA トークンをマウントしない"
+    - expression: "object.spec.containers.all(c, has(c.securityContext) && has(c.securityContext.readOnlyRootFilesystem) && c.securityContext.readOnlyRootFilesystem == true)"
+      message: "ルートファイルシステムは読み取り専用にする"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata: { name: agent-pod-hardening }
+spec:
+  policyName: agent-pod-hardening
+  validationActions: ["Warn", "Audit"]     # 強制するなら ["Deny"]
+  matchResources:
+    namespaceSelector: { matchLabels: { guardrails: enforced } }

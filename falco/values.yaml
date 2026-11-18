@@ -1,0 +1,22 @@
+# helm install falco falcosecurity/falco -n falco --create-namespace -f falco/values.yaml \
+#   --set-file customRules."agent_rules\.yaml"=falco/agent_rules.yaml \
+#   --set-file falco-talon.config.rulesOverride=falco/talon-rules.yaml
+# 検証: falco chart 9.2.2 / Falco 0.45.2 / falco-talon chart 0.5.0（2026-11-18、kind v0.32 / k8s v1.36）
+driver:
+  kind: modern_ebpf
+falco:
+  json_output: true
+  json_include_output_property: true
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/rules.d
+falcosidekick:
+  enabled: true
+  replicaCount: 1
+  config:
+    talon:
+      address: http://falco-talon:2803    # chart 9.2.2 では responseActions.enabled だけでは配線されない
+responseActions:
+  enabled: true
+falco-talon:
+  replicaCount: 1

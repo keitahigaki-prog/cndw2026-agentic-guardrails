@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agents
+  labels:
+    guardrails: enforced   # ValidatingAdmissionPolicy の対象
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: attacker-sim       # 外部の攻撃者サーバー（シミュレーション）
