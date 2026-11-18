@@ -16,8 +16,8 @@ Cloud Native Days Winter 2026 の登壇「OWASP AI Agentic Top10に準拠する�
 
 | パス | 内容 |
 |---|---|
-| `app/` | エージェント（固定スクリプト）、ツールサーバー、攻撃者の受信サーバー |
-| `k8s/` | namespace、攻撃者（シミュレーション）、ガードレールなし／ありの Pod、NetworkPolicy、ValidatingAdmissionPolicy |
+| `app/` | エージェント（固定スクリプト）、ツールサーバー、攻撃者の受信サーバー、OpenTelemetry の初期化（`otel_setup.py`） |
+| `k8s/` | namespace、攻撃者（シミュレーション）、ガードレールなし／ありの Pod、NetworkPolicy、ValidatingAdmissionPolicy、Jaeger（トレースの受け皿） |
 | `falco/` | Falco のルール、Helm の値、Falco Talon のルール |
 | `scripts/` | セットアップ、デモ1、デモ2、リセット |
 | `recordings/` | 登壇で使った録画と、最後の画面 |
@@ -40,6 +40,41 @@ helm install falco falcosecurity/falco -n falco --create-namespace -f falco/valu
 scripts/run-demo1.sh             # 暴走：トークンが、外へ出る
 scripts/run-demo2.sh             # 停止：検知、隔離、停止
 ```
+
+## OpenTelemetry：原因のリクエストまで辿る（ガードレール⑤）
+
+エージェントとツールサーバーは、公式の OpenTelemetry SDK でトレースを出します。`scripts/setup.sh` が、Jaeger（v2 の all-in-one、メモリ保存）を `observability` に入れます。
+
+```
+kubectl -n observability port-forward svc/jaeger 16686:16686    # http://localhost:16686
+```
+
+デモ1またはデモ2を実行したあと、Jaeger の UI で、サービス `coding-agent` を開きます。1回の実行が、1本のトレースになります。
+
+| スパン | 意味 |
+|---|---|
+| `agent.task` | タスク全体（根） |
+| `agent.decide`（`plan`、`hijacked`） | 判断。固定スクリプトなので `agent.scripted=true`。`hijacked` には `agent.injection.detected=false` が付く |
+| `mcp.fs.read` / `mcp.shell.exec` / `mcp.http.post` | エージェント側のツール呼び出し |
+| `mcp.server.*` | ツールサーバー側。`traceparent` で、上の子スパンになる |
+
+見どころは、README を読んだスパン（`mcp.fs.read`）が、トークンを読み（`mcp.shell.exec`）、外へ送る（`mcp.http.post`）までの、すべての起点になっていることです。デモ2では、`mcp.http.post` が、エラー（遮断）で終わります。
+
+### 検知とトレースを、つなぐ
+
+Falco のアラートには、`k8s.pod.name` と時刻があります。トレースには、リソース属性 `k8s.pod.name` と、スパンの時刻があります。
+
+1. Falco のアラートから、`pod=coding-agent` と時刻を読む。
+2. Jaeger で、タグ `k8s.pod.name=coding-agent` と、その時間帯で検索する。
+3. 見つけたトレースの、最初の `mcp.fs.read` が、原因の入口。
+4. エージェントのログには、`[otel] trace_id=…` が出る。トレースの ID で直接開ける。
+
+### 注意
+
+- `otel_setup.py` は、環境変数 `OTEL_EXPORTER_OTLP_ENDPOINT` が未設定なら、何もしません。計装なしでも、従来どおり動きます。
+- スパンは、1つ終わるたびに、すぐ送ります。Talon に Pod を止められても、それまでに終わったスパンは、Jaeger に残ります。根の `agent.task` は、終わる前に Pod が消えるので、デモ2では Jaeger に出ません（子スパンが、親なしで表示されます）。
+- ツールの引数のうち、`body`（トークン）は、スパンに記録しません。実運用でも、機密は属性に入れないでください。
+- Jaeger への通信は、NetworkPolicy（`k8s/30-networkpolicy.yaml`）と、Falco の許可リスト（`falco/agent_rules.yaml` の `agent_allowed_dest_ips`）に、それぞれ許可を足してあります。Jaeger の ClusterIP（`10.96.60.60`）は、`k8s/60-jaeger.yaml` で固定しています。
 
 ## 知っておいてほしいこと
 

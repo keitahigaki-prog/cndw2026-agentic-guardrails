@@ -33,3 +33,9 @@
 - demo1.mp4（109秒）、demo2.mp4（60秒）、各フリーズフレーム PNG を recordings/ に保存。1920×1080・30fps・音声なし（元は 1920×1044・60fps。上下に #0F2530 の帯を付加）。
 - 仕様との差：文字は約12pt（20pt 未満）、背景は灰色（#0F2530 ではない）、ログインバナーが映る。時間はデモ2が約60秒（目標2分30秒）。撮り直しの時間がなく、このまま採用。
 - デモ2の録画では VAP の `Warning:` が出なかった。VAP を作った直後の Pod 作成では、ポリシーが効く前（反映待ち）に通ってしまう競合。事前に VAP を適用しておくか、run-demo2.sh に待ちを入れる必要あり。
+
+## OpenTelemetry の追加（2026-11-18、登壇後）
+- **ローカルで確認済み（Python 3.10、opentelemetry-sdk 1.45.2）**：簡易の OTLP 受信サーバーに送り、(1) 1回の実行が1本のトレースになる、(2) `mcp.server.*` が、`mcp.*` の子になる（`traceparent` の引き継ぎ）、(3) 外へ送れないときは、`mcp.http.post` が ERROR で終わる、(4) トークンが、スパンに入らない、(5) `OTEL_EXPORTER_OTLP_ENDPOINT` を外すと、従来どおり動く。
+- **kind では未検証**：`k8s/60-jaeger.yaml`（Jaeger v2.23.0）、Pod の環境変数、Jaeger への NetworkPolicy の許可、Falco の許可リスト、`app/Dockerfile` の `pip install`、Jaeger UI でのトレース表示。YAML の構文は、パースで確認済み。
+- 特に、デモ2で、(a) NetworkPolicy が、Jaeger への送信を通すか、(b) Falco の `Agent Unexpected Outbound` が、Jaeger への接続で発火しないか（`10.96.60.60` を許可リストに入れた）、(c) Jaeger への接続が、Talon の猶予（5秒）に影響しないか、を確認してください。
+- 登壇のスライド（27・28枚目）のスパン名は、`llm.call` など、概念図の名前です。キットの実際のスパン名は、`agent.decide`、`mcp.*` です。

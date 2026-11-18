@@ -19,12 +19,21 @@ spec:
       image: cndw-demo:0.1
       imagePullPolicy: IfNotPresent
       command: ["python", "mcp_tools.py"]
-      env: [{ name: WORKSPACE, value: /workspace }]
+      env:
+        - { name: WORKSPACE, value: /workspace }
+        - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+        - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://10.96.60.60:4318" }
+        - { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=agents" }
       securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }
       volumeMounts: [{ name: workspace, mountPath: /workspace, readOnly: true }]
     - name: agent
       image: cndw-demo:0.1
       imagePullPolicy: IfNotPresent
       command: ["python", "agent.py"]
-      env: [{ name: PAUSE, value: "4" }, { name: PAUSE_ATTACK, value: "2" }]
+      env:
+        - { name: PAUSE, value: "4" }
+        - { name: PAUSE_ATTACK, value: "2" }
+        - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+        - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://10.96.60.60:4318" }
+        - { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=agents" }
       securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] } }

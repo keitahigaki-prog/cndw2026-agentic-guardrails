@@ -9,4 +9,6 @@ kind load docker-image cndw-demo:0.1 --name cndw-demo
 kubectl apply -f k8s/00-namespaces.yaml
 kubectl apply -f k8s/10-collector.yaml
 kubectl -n attacker-sim rollout status deploy/collector
+kubectl apply -f k8s/60-jaeger.yaml                 # OpenTelemetry のトレースの受け皿（任意）
+kubectl -n observability rollout status deploy/jaeger --timeout=120s
 echo "OK: 次は Falco（README の手順）、または scripts/run-demo1.sh"

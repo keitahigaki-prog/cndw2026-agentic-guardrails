@@ -2,7 +2,7 @@
 # 前提：デフォルトルールが読み込まれていること（macro open_read / outbound を使用）。
 # 検証済み（Falco 0.45.2）：k8s.ns.name と k8s.pod.label[app] は使える（ドット記法 k8s.pod.label.app は構文エラー）。
 - list: agent_allowed_dest_ips
-  items: ["10.96.0.10"]        # kube-dns（kind の既定）。環境に合わせて変更
+  items: ["10.96.0.10", "10.96.60.60"]   # kube-dns（kind の既定）、Jaeger（k8s/60-jaeger.yaml の固定 ClusterIP）。環境に合わせて変更
 
 # 既定の macro outbound は RFC1918 宛を除外する（not fd.snet in (rfc_1918_addresses)）。
 # このデモの宛先（10.96.50.50）は私設アドレスなので、outbound では検知できない。専用の macro を使う。

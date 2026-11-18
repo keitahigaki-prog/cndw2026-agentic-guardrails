@@ -1,0 +1,36 @@
+# ガードレール⑤：OpenTelemetry のトレースの受け皿（Jaeger v2 の all-in-one、メモリ保存）。
+# 検証用の最小構成。OTLP/HTTP（4318）で受け、UI は 16686。
+#   kubectl -n observability port-forward svc/jaeger 16686:16686  →  http://localhost:16686
+# ClusterIP を固定するのは、Falco の許可リスト（agent_allowed_dest_ips）と、
+# Pod の OTEL_EXPORTER_OTLP_ENDPOINT に、同じ値を書くため。kind の既定 Service CIDR（10.96.0.0/16）内。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: jaeger, namespace: observability }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: jaeger } }
+  template:
+    metadata: { labels: { app: jaeger } }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: jaeger
+          image: cr.jaegertracing.io/jaegertracing/jaeger:2.23.0
+          ports:
+            - { name: otlp-http, containerPort: 4318 }
+            - { name: ui, containerPort: 16686 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: jaeger, namespace: observability }
+spec:
+  clusterIP: 10.96.60.60
+  selector: { app: jaeger }
+  ports:
+    - { name: otlp-http, port: 4318, targetPort: 4318 }
+    - { name: ui, port: 16686, targetPort: 16686 }

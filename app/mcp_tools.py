@@ -2,6 +2,11 @@
 注意: shell.exec は意図的に汎用シェル。kind などの検証環境でだけ動かすこと。"""
 import json, os, subprocess, urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from opentelemetry import trace
+from opentelemetry.propagate import extract
+from opentelemetry.trace import Status, StatusCode
+import otel_setup
+tracer = otel_setup.init("mcp-tools")
 WORKSPACE = os.environ.get("WORKSPACE", "/workspace")
 TOOLS = [{"name": "fs.read", "description": "ワークスペースのファイルを読む"},
          {"name": "shell.exec", "description": "シェルコマンドを実行する"},
@@ -21,7 +26,17 @@ class H(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         try:
             if body["method"] == "tools/list": res = {"tools": TOOLS}
-            else: res = {"content": [{"type": "text", "text": call(body["params"]["name"], body["params"].get("arguments", {}))}]}
+            else:
+                name = body["params"]["name"]; args = body["params"].get("arguments", {})
+                attrs = {"tool.name": name}
+                if "cmd" in args: attrs["tool.cmd"] = args["cmd"]
+                if "url" in args: attrs["tool.url"] = args["url"]        # body（トークン）は、記録しない
+                # クライアント（agent）の traceparent を引き継ぎ、子スパンにする
+                with tracer.start_as_current_span("mcp.server." + name, context=extract({k.lower(): v for k, v in self.headers.items()}), kind=trace.SpanKind.SERVER, attributes=attrs) as span:
+                    try: text = call(name, args)
+                    except Exception as e:
+                        span.record_exception(e); span.set_status(Status(StatusCode.ERROR, str(e))); raise
+                res = {"content": [{"type": "text", "text": text}]}
             out = {"jsonrpc": "2.0", "id": body.get("id"), "result": res}
         except Exception as e:
             out = {"jsonrpc": "2.0", "id": body.get("id"), "error": {"code": -32000, "message": str(e)}}

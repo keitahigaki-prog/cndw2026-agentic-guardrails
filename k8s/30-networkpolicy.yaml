@@ -12,3 +12,9 @@ spec:
       ports:
         - { port: 53, protocol: UDP }
         - { port: 53, protocol: TCP }
+    # ⑤ OpenTelemetry：トレースの送信先（Jaeger の OTLP/HTTP）だけを許可
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+          podSelector: { matchLabels: { app: jaeger } }
+      ports:
+        - { port: 4318, protocol: TCP }
