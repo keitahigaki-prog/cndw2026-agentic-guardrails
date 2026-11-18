@@ -31,10 +31,15 @@ class H(BaseHTTPRequestHandler):
                 attrs = {"tool.name": name}
                 if "cmd" in args: attrs["tool.cmd"] = args["cmd"]
                 if "url" in args: attrs["tool.url"] = args["url"]        # body（トークン）は、記録しない
-                # クライアント（agent）の traceparent を引き継ぎ、子スパンにする
+                # ■ extract: リクエストヘッダーの traceparent から、呼び出し元（agent）のスパンを取り出す。
+                #   context= に渡すと、このスパンは、その子になる。これで、2つのプロセスが1本のトレースになる。
+                # ■ ヘッダー名は、クライアントによって大文字小文字が違う（urllib は "Traceparent"）。
+                #   W3C の伝播は小文字で探すので、小文字にそろえて渡す。
+                # ■ kind=SERVER は「リクエストを受けた側」の印。Jaeger の画面で、呼ぶ側と受ける側が区別できる。
                 with tracer.start_as_current_span("mcp.server." + name, context=extract({k.lower(): v for k, v in self.headers.items()}), kind=trace.SpanKind.SERVER, attributes=attrs) as span:
                     try: text = call(name, args)
                     except Exception as e:
+                        # 失敗（例：遮断された外向き通信）を、スパンに残す。Jaeger では赤いエラーとして見える。
                         span.record_exception(e); span.set_status(Status(StatusCode.ERROR, str(e))); raise
                 res = {"content": [{"type": "text", "text": text}]}
             out = {"jsonrpc": "2.0", "id": body.get("id"), "result": res}

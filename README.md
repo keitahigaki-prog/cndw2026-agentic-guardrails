@@ -12,6 +12,24 @@ Cloud Native Days Winter 2026 の登壇「OWASP AI Agentic Top10に準拠する�
 - ツールは MCP 風です（JSON-RPC の `tools/list`、`tools/call` のみ。完全な MCP 実装ではありません）。
 - 攻撃者のサーバーは、クラスタ内のシミュレーション（`attacker-sim`）です。本物のトークンも、外部への送信もありません。
 
+## ガードレール5つの全体像
+
+「暴走するエージェントを止める」ために、層を重ねます。層ごとに、止められるものと止められないものが違います。OWASP の脅威は、[OWASP Top 10 for Agentic Applications](https://genai.owasp.org/)（2025-12 公開）の分類です。
+
+| # | ガードレール | このリポジトリのファイル | 主に対応する脅威 | 止められないもの |
+|---|---|---|---|---|
+| ① | ツールの最小権限（SA トークンを渡さない、読み取り専用ルート、シェルを渡さない） | `k8s/50-agent-protected.yaml`（securityContext） | ASI02 Tool Misuse、ASI03 Identity & Privilege Abuse | 渡した範囲での悪用 |
+| ② | NetworkPolicy の egress 制御（許可は DNS だけ） | `k8s/30-networkpolicy.yaml` | ASI02 | 許可した宛先経由の悪用。FQDN での制御（標準では不可） |
+| ③ | Admission での事前検証（ValidatingAdmissionPolicy） | `k8s/40-vap.yaml` | ASI03、ASI04、ASI05 | 起動後の挙動 |
+| ④ | Falco と eBPF によるランタイム検知、Falco Talon による自動停止 | `falco/` | ASI01 Agent Goal Hijack、ASI02、ASI05 | ルール化していない挙動。最初の1手 |
+| ⑤ | OpenTelemetry のトレースで、原因のリクエストまで辿る | `app/otel_setup.py`、`k8s/60-jaeger.yaml` | ASI01、ASI02、ASI10 | 止める力はない。次のルールを作る材料 |
+
+どの層も、単独では十分ではありません。死角を、次の層が補います。入口（README の隠し指示を読むこと）は、防ぎきれません。そのため、作用する瞬間（トークンを読む、外へ送る）で止めます。
+
+## デモの解説
+
+デモ1（暴走）とデモ2（停止）で、画面に出るコマンドとログの意味は、[`docs/demo-walkthrough.md`](docs/demo-walkthrough.md) にまとめています。
+
 ## 構成
 
 | パス | 内容 |
@@ -22,6 +40,7 @@ Cloud Native Days Winter 2026 の登壇「OWASP AI Agentic Top10に準拠する�
 | `scripts/` | セットアップ、デモ1、デモ2、リセット |
 | `recordings/` | 登壇で使った録画と、最後の画面 |
 | `slides/` | 登壇資料 |
+| `docs/` | デモの解説（コマンドと画面のログの意味） |
 | `VERIFICATION.md` | 実機での検証結果（うまくいかなかった点を含む） |
 | `RECORDING.md` | 録画の手順 |
 

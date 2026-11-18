@@ -21,6 +21,10 @@ spec:
       command: ["python", "mcp_tools.py"]
       env:
         - { name: WORKSPACE, value: /workspace }
+        # --- OpenTelemetry（トレースを Jaeger へ送る。未設定なら、計装なしで動く） ---
+        # POD_NAME: Downward API で、自分の Pod 名を取る。リソース属性 k8s.pod.name に使う（Falco のアラートと同じ名前＝つなぐキー）
+        # OTEL_EXPORTER_OTLP_ENDPOINT: Jaeger の ClusterIP（k8s/60-jaeger.yaml で固定）。DNS を使わないので、egress の許可が単純になる
+        # OTEL_RESOURCE_ATTRIBUTES: $(POD_NAME) は、上の環境変数を参照する書き方（定義順が大事）
         - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
         - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://10.96.60.60:4318" }
         - { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=agents" }
@@ -33,6 +37,10 @@ spec:
       env:
         - { name: PAUSE, value: "4" }
         - { name: PAUSE_ATTACK, value: "2" }
+        # --- OpenTelemetry（トレースを Jaeger へ送る。未設定なら、計装なしで動く） ---
+        # POD_NAME: Downward API で、自分の Pod 名を取る。リソース属性 k8s.pod.name に使う（Falco のアラートと同じ名前＝つなぐキー）
+        # OTEL_EXPORTER_OTLP_ENDPOINT: Jaeger の ClusterIP（k8s/60-jaeger.yaml で固定）。DNS を使わないので、egress の許可が単純になる
+        # OTEL_RESOURCE_ATTRIBUTES: $(POD_NAME) は、上の環境変数を参照する書き方（定義順が大事）
         - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
         - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://10.96.60.60:4318" }
         - { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.pod.name=$(POD_NAME),k8s.namespace.name=agents" }
